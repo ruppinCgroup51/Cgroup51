@@ -1,0 +1,367 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+
+
+    <title>DataTable</title>
+
+    <meta http-equiv="Content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.19/css/jquery.dataTables.min.css">
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.19/css/dataTables.bootstrap.min.css">
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/responsive/2.2.3/css/responsive.dataTables.min.css">
+
+    <style type="text/css">
+
+        button {
+            margin-left: 10px;
+        }
+    </style>
+
+
+    <script type="text/javascript" src="https://code.jquery.com/jquery-3.3.1.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    <script type="text/javascript" src="https://cdn.datatables.net/1.10.19/js/jquery.dataTables.min.js"></script>
+    <script type="text/javascript" src="https://cdn.datatables.net/responsive/2.2.3/js/dataTables.responsive.min.js"></script>
+    <script type="text/javascript" src="https://cdn.datatables.net/1.10.19/js/dataTables.bootstrap.min.js"></script>
+    <script src="https://unpkg.com/sweetalert/dist/sweetalert.min.js"></script>
+
+    <script src="../JS/ajax.js"></script>
+
+
+    <script>
+
+        // will run when the document is ready
+        $(document).ready(function () {
+            server = "https://localhost:7031/";
+            $("#manageUsersBtn").click(function () {
+                // Fetch user data and initialize DataTable when the "Manage Users" button is clicked
+                let api = server + "api/Users";
+                ajaxCall("GET", api, "", getSuccess, error);
+                $("#pForm").show();
+            });
+
+            $("#adminReportBtn").click(function () {
+                let selectedMonth = $("#monthDropdown").val();
+                generateAdminReport(selectedMonth);
+            });
+
+            populateMonthsDropdown();
+
+            $("#userForm").submit(onSubmitFunc); // wire the submit event to a function called f1
+            $("#editDiv").hide();
+            $("#pForm").hide();
+
+            $("#logout").click(function () {
+                sessionStorage.clear();
+                window.location.href = 'Registertion.html';
+            });
+
+            function populateMonthsDropdown() {
+                let months = [
+                    "January", "February", "March", "April", "May", "June",
+                    "July", "August", "September", "October", "November", "December"
+                ];
+
+                let dropdown = $("#monthDropdown");
+                $.each(months, function (index, month) {
+                    dropdown.append($("<option>").val(month).text(month));
+                });
+            }
+
+            // Function to generate Admin Report
+            function generateAdminReport(selectedMonth) {
+                // Convert the month string to an integer
+                const monthIndex = new Date(Date.parse(selectedMonth + " 1, 2000")).getMonth() + 1;
+
+               
+                let api = `${server}api/Users/averagePricePerNight/${monthIndex}`;
+                console.log(api);
+                ajaxCall("GET", api, "", function (reportData) {
+                    $("#adminReportResults").empty();
+                    if (reportData.length > 0) {
+                        // Display the results in the div
+                        $.each(reportData, function (index, result) {
+                            $("#adminReportResults").append(`<p>${result.city}: ${result.averagePrice}</p>`);
+                        });
+                    } else {
+                        $("#adminReportResults").html("<p>No data available for the selected month.</p>");
+                    }
+                }, error);
+            }
+
+        });
+
+        // wire all the buttons to their functions
+        function buttonEvents() {
+
+            $(document).on("click", ".editBtn", function () {
+                markSelected(this);
+                $("#editDiv").show();
+                $("#editDiv :input").prop("disabled", false); // edit mode: enable all controls in the form
+                populateFields(this.getAttribute('data-userId')); // fill the form fields according to the selected row
+            });
+
+            $(document).on("click", ".viewBtn", function () {
+                markSelected(this);
+                $("#editDiv").show();
+                row.className = 'selected';
+                $("#editDiv :input").attr("disabled", "disabled"); // view mode: disable all controls in the form
+                populateFields(this.getAttribute('data-userId'));
+            });
+
+            $(document).on("click", ".deleteBtn", function () {
+                markSelected(this);
+                var userId = this.getAttribute('data-userId');
+                swal({ // this will open a dialouge
+                    title: "Are you sure ??",
+                    text: "",
+                    icon: "warning",
+                    buttons: true,
+                    dangerMode: true
+                })
+                    .then(function (willDelete) {
+                        if (willDelete) DeleteUser(userId);
+                        else swal("Not Deleted!");
+                    });
+            });
+        }
+
+        // mark the selected row
+        function markSelected(btn) {
+            $("#usersTable tr").removeClass("selected"); // remove seleced class from rows that were selected before
+            row = (btn.parentNode).parentNode; // button is in TD which is in Row
+            row.className = 'selected'; // mark as selected
+        }
+
+        // Delete a car from the server
+        function DeleteUser(email) {
+            ajaxCall("DELETE", `${server}api/Users/delete?email=${encodeURIComponent(email)}`, null, function (deletedUser) {
+                // Call another function to fetch the updated list of users
+                fetchDeletedUserList();
+            }, error);
+        }
+
+        function onSubmitFunc() {
+      
+            let userAfterEdit = {
+               
+                firstName: $("#firstName").val(),
+                lastName: $("#lastName").val(),
+                email: $("#email").val(),
+                password: $("#password").val(),
+                isActive: $("#isActive").is(":checked")
+             
+            };
+
+           
+            
+            // update a new user record to the server
+            ajaxCall("PUT", `${server}api/Users/update`, JSON.stringify(userAfterEdit), function (updatedUser) {
+                // Call another function to fetch the updated list of users
+                fetchUpdatedUserList();
+            }, error);
+
+            return false;
+        }
+
+        function fetchUpdatedUserList() {
+            let api = server + "api/Users";
+            ajaxCall("GET", api, "", function (updatedUsers) {
+                updateSuccess(updatedUsers);
+            }, error);
+        }
+
+        function fetchDeletedUserList() {
+            let api = server + "api/Users";
+            ajaxCall("GET", api, "", function (updatedUsers) {
+                deleteSuccess(updatedUsers);
+            }, error);
+        }
+        // fill the form fields
+        function populateFields(userId) {
+            user = getUser(userId);
+            $("#firstName").val(user.firstName);
+            $("#lastName").val(user.lastName);
+            $("#email").val(user.email);
+            $("#password").val(user.password);
+            $("#isActive").prop('checked', user.isActive);
+           
+        }
+
+        // get a user according to its Email
+        function getUser(email) {
+            for (i in users) {
+                if (users[i].email == email)
+                    return users[i];
+            }
+            return null;
+        }
+
+        // success callback function after update
+        function updateSuccess(userData) {
+            tbl.clear();
+            redrawTable(tbl, userData);
+            buttonEvents();
+            $("#editDiv").hide();
+            swal("Updated Successfuly!", "Great Job", "success");
+        }
+
+        // success callback function after delete
+        function deleteSuccess(userData) {
+            tbl.clear();
+            redrawTable(tbl, userData);
+            buttonEvents(); // after redrawing the table, we must wire the new buttons
+            $("#editDiv").hide();
+            swal("Deleted Successfuly!", "Great Job", "success");
+        }
+
+        // redraw a datatable with new data
+        function redrawTable(tbl, data) {
+            tbl.clear();
+            for (var i = 0; i < data.length; i++) {
+                tbl.row.add(data[i]);
+            }
+            tbl.columns.adjust().draw();
+           /* tbl.draw();*/
+        }
+
+        // this function is activated in case of a success
+        function getSuccess(usersData) {
+            users = usersData; // keep the cars array in a global variable;
+            try {
+                tbl = $('#usersTable').DataTable({
+                    data: usersData,
+                    pageLength: 5,
+                    columns: [
+                        {
+                            render: function (data, type, row, meta) {
+                                let dataUser = "data-userId='" + row.email + "'";
+
+                                editBtn = "<button type='button' class = 'editBtn btn btn-success' " + dataUser + "> Edit </button>";
+                                viewBtn = "<button type='button' class = 'viewBtn btn btn-info' " + dataUser + "> View </button>";
+                                deleteBtn = "<button type='button' class = 'deleteBtn btn btn-danger' " + dataUser + "> Delete </button>";
+                                return editBtn + viewBtn + deleteBtn;
+                            }
+                        },
+                      
+                        { data: "firstName" },
+                        { data: "lastName" },
+                        { data: "email" },
+                        { data: "password" },
+                
+                        {
+                            data: "isActive",
+                            render: function (data, type, row, meta) {
+                                if (data == true)
+                                    return '<input type="checkbox" checked disabled="disabled" />';
+                                else
+                                    return '<input type="checkbox" disabled="disabled"/>';
+                            }
+                        }
+                     
+                    ],
+                });
+                buttonEvents();
+            }
+
+            catch (err) {
+                alert(err);
+            }
+        }
+
+        // this function is activated in case of a failure
+        function error(err) {
+            swal("Error: " + err);
+        }
+
+    </script>
+
+</head>
+<body>
+
+    <nav class="navbar navbar-default">
+        <div class="container-fluid">
+            <div class="navbar-header">
+                <a class="navbar-brand" href="#">User DataTable</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div>
+            <button type="button" class="btn btn-primary btn-lg" id="manageUsersBtn">Manage Users</button>
+            <button type="button" class="btn btn-primary btn-lg" id="logout">Logout</button>
+        </div>
+        <br /><br />
+        <div id="adminReportDiv">
+            <label for="monthDropdown">Select a Month:</label>
+            <select class="form-control" id="monthDropdown">
+                <!-- Populate this dropdown with months as options (e.g., January, February, etc.) -->
+            </select>
+            <button type="button" class="btn btn-primary" id="adminReportBtn">Generate Report</button>
+            <div id="adminReportResults"></div>
+        </div>
+        <br />
+        <form id="pForm">
+            <table id="usersTable" class="display nowrap" style="width:100%">
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th>First Name</th>
+                        <th>Last Name</th>
+                        <th>Email</th>
+                        <th>Password</th>
+                        <th>Is Active</th>
+
+                    </tr>
+                </thead>
+            </table>
+
+        </form>
+
+        <div id="editDiv">
+            <form id="userForm">
+                <div class="form-group row">
+                    <div class="form-group col-sm-3">
+                        <label for="firstName"><span class="red-star">★ </span>First Name</label>
+                        <input type="text" class="form-control" id="firstName" placeholder="Enter first name" required>
+                    </div>
+
+
+                    <div class="form-group col-sm-3">
+                        <label for="lastName"><span class="red-star">★ </span>Last Name</label>
+                        <input type="text" class="form-control" id="lastName" placeholder="Enter last name" required>
+                    </div>
+
+                    <div class="form-group col-sm-3">
+                        <label for="email"><span class="red-star">★ </span>Email</label>
+                        <input type="text" class="form-control" id="email" readonly>
+                    </div>
+
+                    <div class="form-group col-sm-3">
+                        <label for="password"><span class="red-star">★ </span>Password</label>
+                        <input type="text" class="form-control" id="password" readonly>
+                    </div>
+
+                    <div class="form-group col-sm-3">
+                        <label for="isActive"><span class="red-star">★ </span>Is Active?</label>
+                        <input type="checkbox" class="form-control" id="isActive" checked />
+                    </div>
+
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-lg" id="saveBTN">Save</button>
+
+            </form>
+        </div>
+
+    </div>
+
+
+
+
+</body>
+</html>

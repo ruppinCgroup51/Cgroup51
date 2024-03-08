@@ -1,0 +1,248 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title></title>
+    <link href="../CSS/VacationCss.css" rel="stylesheet" />
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"
+            integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo="
+            crossorigin="anonymous"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    <script src="https://unpkg.com/sweetalert/dist/sweetalert.min.js"></script>
+    <script src="../JS/ajax.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <script>
+
+
+        $(document).ready(function () {
+            // קישור הקליינט לשרת
+
+            server = "https://localhost:7031/";
+            //where is the line in your code ?
+            // חיווט כפתור סאבמיט
+            $("#FormId").submit(submitVacation);
+            $("#vacations").click(getVacations);
+
+            let holdId = sessionStorage.getItem('key');
+            let holdEmail = JSON.parse(sessionStorage.getItem('userLoggedIn'));
+            //console.log(holdEmail.email);
+            if (!holdEmail)
+                return;
+
+            $("#flatid").val(holdId);
+            $('#userid').val(holdEmail.email);
+            $("#logoutButton").click(function () {
+                // Clear sessionStorage
+                sessionStorage.clear();
+
+                // Redirect to the registration page
+                window.location.href = 'Registertion.html';
+            });
+
+            $("#updateButton").click(function () {
+
+                // Redirect to the registration page
+                window.location.href = 'Registertion.html';
+            });
+
+            $("#flatButton").click(function () {
+                // Redirect to the registration page
+                window.location.href = 'Flats.html';
+            });
+
+
+
+        });
+
+        function changeDate() {
+
+            let startDate = new Date($("#start").val());
+            let endDate = new Date($("#end").val());
+
+            let durationInMilliseconds = endDate - startDate;
+
+            // Convert milliseconds to days
+            let durationInDays = durationInMilliseconds / (1000 * 3600 * 24);
+
+            let startInput = document.getElementById("start");
+            let endInput = document.getElementById("end");
+
+            if (durationInDays > 20) {
+                // Set custom validity for the input elements
+                startInput.setCustomValidity("The duration between the start and end dates cannot exceed 20 days.");
+                endInput.setCustomValidity("The duration between the start and end dates cannot exceed 20 days.");
+                return;
+            }
+            else {
+                startInput.setCustomValidity("");
+                endInput.setCustomValidity("");
+
+            }
+
+            if (endDate < startDate) {
+                startInput.setCustomValidity("The end date should be greater than the start date");
+                endInput.setCustomValidity("The end date should be greater than the start date");
+                return;
+            }
+            else {
+                startInput.setCustomValidity("");
+                endInput.setCustomValidity("");
+
+            }
+
+        }
+
+
+        function submitVacation(event) {
+
+            event.preventDefault()
+
+            let startDate = new Date($("#start").val());
+            let endDate = new Date($("#end").val());
+            /*console.log($('#userid').val())*/
+            let newVacation = {
+                /*  id: $("#vacationid").val(),*/
+                userId: $('#userid').val(),
+                flatId: $("#flatid").val(),
+                startDate: startDate.toISOString(),
+                endDate: endDate.toISOString()
+
+            };
+            let api = server + "api/Vacations";
+            ajaxCall("POST", api, JSON.stringify(newVacation), postSCB, postECB);
+
+            
+
+
+        }
+
+        // success callback function
+        function postSCB(objectFromServer) {
+
+            console.log(objectFromServer);
+
+            $('#start').val("");
+            $("#end").val("");
+
+            if (objectFromServer === -1) {
+                postECB("Flat is taken in those dates");
+            } else {
+                console.log("Vacation added successfully");
+                setTimeout(() => {
+                    alert("Vacation added successfully")
+                },1)
+            }    
+        }
+
+        // error callback function
+        function postECB(errorFromServer) {
+         
+            console.log(errorFromServer);
+            setTimeout(() => {
+                alert("Flat is taken in those dates")
+            }, 1)
+
+        }
+
+
+        function getVacations() {
+            let api = server + "api/Vacations/getByEmail";
+            let email = $('#userid').val();  // assuming this gets the user's email
+            api += `?email=${encodeURIComponent(email)}`;  // append email as a query parameter
+            ajaxCall("GET", api, null, getSCB, getECB);
+        }
+
+        // error callback function
+        function getECB(errorFromServer) {
+            console.log(errorFromServer);
+
+        }
+        // success callback function
+        function getSCB(vacationsList) {
+
+            console.log(vacationsList)
+
+            if (vacationsList.length > 0) {
+
+
+
+                let vacationsContainer = document.getElementById("divContainer");
+
+                vacationsContainer.innerHTML = "";
+
+                let vacationElements = vacationsList.map(function (vacation) {
+
+
+                    let startDateNew = new Date(vacation.startDate).toISOString().slice(0, 10);
+                    let endDateNew = new Date(vacation.endDate).toISOString().slice(0, 10);
+
+
+                    let newDiv = document.createElement('div');
+
+                    let tempVacation = `Vacation detalis: Id: ${vacation.id} User Id: ${vacation.userId} FlatId: ${vacation.flatId} start date: ${startDateNew} end date: ${endDateNew}`
+
+                    newDiv.innerHTML = tempVacation;
+
+                    vacationsContainer.appendChild(newDiv)
+
+                    return newDiv;
+
+                });
+                vacationElements.forEach(function (div) {
+                    vacationsContainer.appendChild(div);
+                })
+            }
+
+            else {
+
+                let vacationsContainer = document.getElementById("divContainer");
+
+                vacationsContainer.innerHTML = "you have no booked vacations";
+            }
+
+        }
+
+    </script>
+</head>
+
+<body>
+    <div id="header">
+        <button id="logoutButton">Logout</button>
+        <button id="updateButton">Update</button>
+        <button id="flatButton">Flats</button>
+        <h4 style="text-align:center">Enter vacation details</h4>
+        <form id="FormId">
+            <!--<label id="label">Vacation Id <span>*</span></label>
+        <input id="vacationid" type="number" placeholder="Vacation id" required /> <br /><br />-->
+
+            <label id="label">User Email <span>*</span></label>
+            <input id="userid" type="text" placeholder="User email" readonly required /> <br /><br />
+
+            <label id="label">Flat-ID <span>*</span></label>
+            <input id="flatid" type="text" readonly required />
+            <br /><br />
+
+            <label id="label">Start Date: <span>*</span></label>
+            <input type="date" id="start" name="trip-start" required /><br /><br />
+
+            <label id="label">End Date: <span>*</span></label>
+            <input type="date" id="end" oninput="changeDate()" name="trip-start" required /><br /><br />
+
+            <input id="submitVacation" type="submit" value="submit" />
+            <br />
+
+        </form>
+
+
+    </div>
+    <div id="footer">
+
+        <button id="vacations" onclick="getVacations()">Get all my vacations</button>
+        <div id="divContainer">
+
+        </div>
+    </div>
+</body>
+</html>
